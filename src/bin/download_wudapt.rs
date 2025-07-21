@@ -2,33 +2,46 @@ use clap::{Arg, Command};
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::blocking::Client;
 use std::fs::{self, File};
-use std::io::{self, BufWriter, Write};
+use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// Known WUDAPT download URLs (as of 2024)
 const WUDAPT_URLS: &[(&str, &str)] = &[
-    ("lcz-generator-v3", "https://lcz-generator.rub.de/cogs/lcz_filter_v3_cog.tif"),
-    ("zenodo-v3", "https://zenodo.org/records/6364594/files/lcz_filter_v3.tif"),
-    ("lcz-generator-v2", "https://lcz-generator.rub.de/cogs/lcz_filter_v2_cog.tif"),
+    (
+        "lcz-generator-v3",
+        "https://lcz-generator.rub.de/cogs/lcz_filter_v3_cog.tif",
+    ),
+    (
+        "zenodo-v3",
+        "https://zenodo.org/records/6364594/files/lcz_filter_v3.tif",
+    ),
+    (
+        "lcz-generator-v2",
+        "https://lcz-generator.rub.de/cogs/lcz_filter_v2_cog.tif",
+    ),
 ];
 
 /// Default locations to place the downloaded file
 fn get_default_locations() -> Vec<PathBuf> {
     let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    
+
     vec![
         current_dir.join("wudapt_lcz_global.tif"),
         current_dir.join("data").join("wudapt_lcz_global.tif"),
         PathBuf::from("/tmp/wudapt_lcz_global.tif"),
-        dirs::home_dir().unwrap_or_default().join(".cache").join("urban_classifier").join("wudapt_lcz_global.tif"),
+        dirs::home_dir()
+            .unwrap_or_default()
+            .join(".cache")
+            .join("urban_classifier")
+            .join("wudapt_lcz_global.tif"),
     ]
 }
 
 fn download_with_progress(url: &str, output_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     println!("🌍 Downloading Global LCZ Map from: {}", url);
     println!("📁 Saving to: {}", output_path.display());
-    
+
     // Create parent directory if it doesn't exist
     if let Some(parent) = output_path.parent() {
         fs::create_dir_all(parent)?;
@@ -49,7 +62,7 @@ fn download_with_progress(url: &str, output_path: &Path) -> Result<(), Box<dyn s
 
     // Start the download
     let mut response = client.get(url).send()?;
-    
+
     if !response.status().is_success() {
         return Err(format!("Failed to download: HTTP {}", response.status()).into());
     }
@@ -64,9 +77,13 @@ fn download_with_progress(url: &str, output_path: &Path) -> Result<(), Box<dyn s
         pb
     } else {
         let pb = ProgressBar::new_spinner();
-        pb.set_style(ProgressStyle::default_spinner()
-            .template("{spinner:.green} [{elapsed_precise}] Downloading... {bytes} ({bytes_per_sec})")
-            .unwrap());
+        pb.set_style(
+            ProgressStyle::default_spinner()
+                .template(
+                    "{spinner:.green} [{elapsed_precise}] Downloading... {bytes} ({bytes_per_sec})",
+                )
+                .unwrap(),
+        );
         pb
     };
 
@@ -98,13 +115,13 @@ fn download_with_progress(url: &str, output_path: &Path) -> Result<(), Box<dyn s
     }
 
     println!("📊 File size: {:.2} MB", file_size as f64 / 1_048_576.0);
-    
+
     Ok(())
 }
 
 fn verify_geotiff(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     println!("🔍 Verifying GeoTIFF file...");
-    
+
     // Basic file existence and size check
     let metadata = fs::metadata(path)?;
     if metadata.len() == 0 {
@@ -115,7 +132,7 @@ fn verify_geotiff(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let mut file = File::open(path)?;
     let mut header = [0u8; 4];
     std::io::Read::read_exact(&mut file, &mut header)?;
-    
+
     // TIFF files start with either "II*\0" (little-endian) or "MM\0*" (big-endian)
     if !(header == [0x49, 0x49, 0x2A, 0x00] || header == [0x4D, 0x4D, 0x00, 0x2A]) {
         return Err("File does not appear to be a valid TIFF file".into());
@@ -178,7 +195,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if output_path.exists() && !matches.get_flag("force") {
         println!("✅ File already exists: {}", output_path.display());
         println!("💡 Use --force to re-download, or specify a different output path with --output");
-        
+
         // Verify existing file
         match verify_geotiff(&output_path) {
             Ok(()) => {
@@ -205,7 +222,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut last_error = None;
     for (source, url) in urls {
         println!("\n🚀 Attempting download from {} source...", source);
-        
+
         match download_with_progress(url, &output_path) {
             Ok(()) => {
                 // Verify the downloaded file
@@ -215,11 +232,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("📁 Location: {}", output_path.display());
                         println!();
                         println!("🔧 You can now use this file with urban_classifier:");
-                        println!("   Rust: UrbanClassifier::new(\"{}\")", output_path.display());
-                        println!("   Python: urban_classifier.PyUrbanClassifier(\"{}\")", output_path.display());
+                        println!(
+                            "   Rust: UrbanClassifier::new(\"{}\")",
+                            output_path.display()
+                        );
+                        println!(
+                            "   Python: urban_classifier.PyUrbanClassifier(\"{}\")",
+                            output_path.display()
+                        );
                         println!();
-                        println!("🌍 Data Source: World Urban Database and Access Portal Tools (WUDAPT)");
-                        println!("📖 Citation: Stewart, I.D. and Oke, T.R., 2012. Local climate zones");
+                        println!(
+                            "🌍 Data Source: World Urban Database and Access Portal Tools (WUDAPT)"
+                        );
+                        println!(
+                            "📖 Citation: Stewart, I.D. and Oke, T.R., 2012. Local climate zones"
+                        );
                         println!("             for urban temperature studies. BAMS, 93(12), pp.1879-1900.");
                         return Ok(());
                     }
