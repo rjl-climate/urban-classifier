@@ -90,16 +90,15 @@ def main():
     print("\n4. Classification Example")
     print("-------------------------")
 
-    # Use the real WUDAPT file
-    wudapt_file = (
-        "/Users/richardlyon/dev/mine/rust/urban-classifier/wudapt_lcz_global.tif"
-    )
+    # Check the default data location first
+    default_path = urban_classifier.PyUrbanClassifier.default_data_path()
+    print(f"Default WUDAPT data location: {default_path}")
 
-    if Path(wudapt_file).exists():
-        print(f"Found WUDAPT file: {wudapt_file}")
+    if Path(default_path).exists():
+        print("Found WUDAPT file at default location!")
         try:
-            # Initialize classifier
-            classifier = urban_classifier.PyUrbanClassifier(wudapt_file)
+            # Initialize classifier from default location
+            classifier = urban_classifier.PyUrbanClassifier.from_default_data()
 
             # Validate DataFrame
             print("Validating DataFrame schema...")
@@ -148,8 +147,18 @@ def main():
             print("Error details:", str(e))
             return
     else:
-        print(f"Error: WUDAPT file not found at {wudapt_file}")
-        print("Please ensure the file exists at the specified location.")
+        print("Error: WUDAPT file not found at default location.")
+        print()
+        print("To set up the WUDAPT data file:")
+        print("1. Download from: https://lcz-generator.rub.de/downloads")
+        print("2. Create the directory if it doesn't exist:")
+        print(f"   mkdir -p '{Path(default_path).parent}'")
+        print("3. Move the file to:")
+        print(f"   '{default_path}'")
+        print()
+        print(
+            "Alternatively, use PyUrbanClassifier('custom/path/to/file.tif') for a custom location."
+        )
         return
 
     # Example 5: Working with results

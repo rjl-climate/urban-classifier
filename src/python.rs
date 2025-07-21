@@ -20,6 +20,7 @@
 #![allow(non_local_definitions)]
 
 use pyo3::prelude::*;
+use pyo3::types::PyType;
 use pyo3_polars::PyDataFrame;
 use std::collections::HashMap;
 
@@ -35,9 +36,39 @@ pub struct PyUrbanClassifier {
 #[pymethods]
 impl PyUrbanClassifier {
     #[new]
-    fn new(wudapt_path: &str) -> PyResult<Self> {
-        let inner = UrbanClassifier::new(wudapt_path).map_err(convert_classifier_error_to_py)?;
+    fn new(wudapt_path: Option<&str>) -> PyResult<Self> {
+        let inner = match wudapt_path {
+            Some(path) => UrbanClassifier::new(path),
+            None => UrbanClassifier::from_default_data(),
+        }
+        .map_err(convert_classifier_error_to_py)?;
         Ok(PyUrbanClassifier { inner })
+    }
+
+    /// Create a PyUrbanClassifier using the default WUDAPT data file location.
+    ///
+    /// This looks for the WUDAPT file in the system's application support directory:
+    /// - macOS: ~/Library/Application Support/urban-classifier/wudapt_lcz_global.tif
+    /// - Linux: ~/.local/share/urban-classifier/wudapt_lcz_global.tif  
+    /// - Windows: %APPDATA%\urban-classifier\wudapt_lcz_global.tif
+    ///
+    /// Returns:
+    /// PyUrbanClassifier instance
+    #[classmethod]
+    fn from_default_data(_cls: &PyType) -> PyResult<Self> {
+        let inner = UrbanClassifier::from_default_data().map_err(convert_classifier_error_to_py)?;
+        Ok(PyUrbanClassifier { inner })
+    }
+
+    /// Get the default WUDAPT data file path for this system.
+    ///
+    /// Returns:
+    /// String path to the default WUDAPT data location
+    #[staticmethod]
+    fn default_data_path() -> String {
+        UrbanClassifier::default_data_path()
+            .to_string_lossy()
+            .to_string()
     }
 
     /// Classify geographic coordinates using WUDAPT LCZ data.

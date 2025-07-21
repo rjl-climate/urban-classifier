@@ -29,7 +29,7 @@ use crate::spatial::{
 use gdal::Dataset;
 use polars::prelude::*;
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Type alias for station IDs and their coordinates
 type StationCoordinates = (Vec<String>, Vec<(f64, f64)>);
@@ -40,6 +40,43 @@ pub struct UrbanClassifier {
 }
 
 impl UrbanClassifier {
+    /// Get the default WUDAPT data file path in the system's application support directory
+    ///
+    /// # Returns
+    /// PathBuf to the default WUDAPT LCZ GeoTIFF file location
+    ///
+    /// # Platform-specific locations
+    /// - macOS: `~/Library/Application Support/urban-classifier/wudapt_lcz_global.tif`
+    /// - Linux: `~/.local/share/urban-classifier/wudapt_lcz_global.tif`
+    /// - Windows: `%APPDATA%\urban-classifier\wudapt_lcz_global.tif`
+    pub fn default_data_path() -> PathBuf {
+        dirs::data_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("urban-classifier")
+            .join("wudapt_lcz_global.tif")
+    }
+
+    /// Create a new UrbanClassifier using the default WUDAPT data file location
+    ///
+    /// This convenience constructor looks for the WUDAPT file in the system's
+    /// application support directory. Use `new()` if you want to specify a custom path.
+    ///
+    /// # Returns
+    /// A new UrbanClassifier instance or an error if the file cannot be opened
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use urban_classifier::UrbanClassifier;
+    ///
+    /// // Load from default system location
+    /// let classifier = UrbanClassifier::from_default_data()?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn from_default_data() -> Result<Self> {
+        let default_path = Self::default_data_path();
+        Self::new(default_path)
+    }
+
     /// Create a new UrbanClassifier from a WUDAPT GeoTIFF file
     ///
     /// # Arguments
@@ -47,6 +84,15 @@ impl UrbanClassifier {
     ///
     /// # Returns
     /// A new UrbanClassifier instance or an error if the file cannot be opened
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use urban_classifier::UrbanClassifier;
+    ///
+    /// // Load from custom path
+    /// let classifier = UrbanClassifier::new("path/to/wudapt.tif")?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn new<P: AsRef<Path>>(wudapt_geotiff_path: P) -> Result<Self> {
         let path = wudapt_geotiff_path.as_ref();
 
@@ -357,5 +403,43 @@ mod tests {
         // Test names and categories
         assert_eq!(Lcz::from_code(1).full_name(), "Compact high-rise");
         assert_eq!(Lcz::from_code(11).simple_category().as_ref(), "Rural");
+    }
+
+    /// Test default data path functionality
+    #[test]
+    fn test_default_data_path() {
+        let default_path = UrbanClassifier::default_data_path();
+
+        // Should contain the expected filename
+        assert!(default_path
+            .to_string_lossy()
+            .contains("wudapt_lcz_global.tif"));
+
+        // Should contain the application directory name
+        assert!(default_path.to_string_lossy().contains("urban-classifier"));
+
+        // Path should be absolute
+        assert!(default_path.is_absolute());
+    }
+
+    /// Test from_default_data constructor (will fail without actual file)  
+    #[test]
+    fn test_from_default_data_missing_file() {
+        let result = UrbanClassifier::from_default_data();
+
+        // This should fail because the default file doesn't exist in test environment
+        // Unless the user actually has the file at the default location
+        match result {
+            Err(ClassifierError::FileNotFound { .. }) => {
+                // Expected - file doesn't exist
+            }
+            Ok(_) => {
+                // File actually exists at default location - that's fine too
+                println!("WUDAPT file exists at default location");
+            }
+            Err(other_error) => {
+                panic!("Expected FileNotFound error, got: {:?}", other_error);
+            }
+        }
     }
 }
